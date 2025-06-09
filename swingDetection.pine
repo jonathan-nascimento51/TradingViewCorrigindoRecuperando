@@ -1,0 +1,91 @@
+// @version=6
+library('SwingDetection', overlay=false)
+
+// FUNÇÃO AUXILIAR: Detecta rompimento de P2 com impulso
+export hasImpulseBreakout(int _dir, float _p2, float atrValue) =>
+    float realBody = math.abs(close - open)
+    float buffer = atrValue * 0.2
+    bool priceBreakout = _dir == 1 ? close > _p2 + buffer : close < _p2 - buffer
+    bool impulse = realBody > atrValue * 0.8
+    priceBreakout and impulse
+
+// FUNÇÃO PRINCIPAL DE SCORE
+export getStrongestPivots(float[] _pivots, string[] _types, int[] _bars, float biasVal, float atrLength, float[] _fractalPrices) =>
+    int cnt = array.size(_pivots)
+    float bestScore = -1.0
+    float _p1 = na, float _p2 = na, float _p3 = na
+    int _p1Bar = na, int _p2Bar = na, int _p3Bar = na
+    int _dir = 0
+    float optimalDurationMin = atrLength * 1.0
+    float optimalDurationMax = atrLength * 3.0
+    if cnt >= 3 and array.size(_types) >= 3 and array.size(_bars) >= 3
+        for i = 0 to cnt - 3
+            string t1 = array.get(_types, i), string t2 = array.get(_types, i + 1), string t3 = array.get(_types, i + 2)
+            float p1 = array.get(_pivots, i), float p2 = array.get(_pivots, i + 1), float p3 = array.get(_pivots, i + 2)
+            int b1 = array.get(_bars, i), int b2 = array.get(_bars, i + 1), int b3 = array.get(_bars, i + 2)
+            bool isUp = (t1 == 'L' and t2 == 'H' and t3 == 'L')
+            bool isDn = (t1 == 'H' and t2 == 'L' and t3 == 'H')
+            int dir = isUp ? 1 : isDn ? -1 : 0
+            if dir != 0
+                float rangeP1P2 = math.abs(p2 - p1)
+                float pbRatio = rangeP1P2 > 0 ? math.abs(p2 - p3) / rangeP1P2 : 0.0
+                float pbQualityScore = pbRatio >= 0.382 and pbRatio <= 0.618 ? 1.0 : pbRatio > 0.618 and pbRatio <= 0.786 ? 0.5 : 0.2
+                int confluenceCount = 0
+                if array.size(_fractalPrices) > 0
+                    float topOfRange = math.max(p1, p2), float bottomOfRange = math.min(p1, p2)
+                    for fPrice in _fractalPrices
+                        if fPrice >= bottomOfRange and fPrice <= topOfRange
+                            confluenceCount += 1
+                float confluenceScore = confluenceCount + 1
+                int duration = b3 - b1
+                float durationQualityScore = duration >= optimalDurationMin and duration <= optimalDurationMax ? 1.0 : duration > optimalDurationMax ? 0.5 : 0.3
+                float biasFactor = (biasVal == dir ? 1.5 : 1.0)
+                float score = rangeP1P2 * pbQualityScore * durationQualityScore * confluenceScore * biasFactor
+                if score > bestScore
+                    bestScore := score
+                    _p1 := p1, _p2 := p2, _p3 := p3
+                    _p1Bar := b1, _p2Bar := b2, _p3Bar := b3
+                    _dir := dir
+    // ALTERAÇÃO 1: Adicionado 'bestScore' ao retorno
+    [_p1, _p2, _p3, _p1Bar, _p2Bar, _p3Bar, _dir, bestScore]
+
+
+// FUNÇÃO DE ORQUESTRAÇÃO
+export determineFib(float[] pivotPrices, string[] pivotTypes, int[] pivotBars, float biasVal, string fibModeInput, float atrLength, float[] fractalPrices, float atrValue) =>
+    float _p1 = na, float _p2 = na, float _p3 = na
+    int _dir = 0
+    string _mode = 'Retracement'
+    int _p1Bar = na, int _p2Bar = na, int _p3Bar = na
+    float pbPct = na
+
+    // ALTERAÇÃO 2: Captura o 'spScore' retornado por getStrongestPivots
+    [sp1, sp2, sp3, sp1Bar, sp2Bar, sp3Bar, spDir, spScore] = getStrongestPivots(pivotPrices, pivotTypes, pivotBars, biasVal, atrLength, fractalPrices)
+    
+    if not na(sp1)
+        _p1 := sp1, _p2 := sp2, _p3 := sp3
+        _p1Bar := sp1Bar, _p2Bar := sp2Bar, _p3Bar := sp3Bar
+        _dir := spDir
+    
+    bool breakout = false
+    if not na(_p1) and not na(_p2)
+        if not na(_p3)
+            float rangeP1P2 = math.abs(_p2 - _p1)
+            pbPct := rangeP1P2 > 0 ? math.abs(_p2 - _p3) / rangeP1P2 : 0
+        
+        breakout := hasImpulseBreakout(_dir, _p2, atrValue)
+        
+        string m = fibModeInput
+        if fibModeInput == 'Auto'
+            if breakout
+                if not na(pbPct) and pbPct >= 0.618
+                    m := 'Projection'
+                else
+                    m := 'Extension'
+            else
+                m := 'Retracement'
+        if biasVal != 0 and _dir != biasVal
+            m := 'Retracement'
+        _mode := m
+
+    // ALTERAÇÃO 3: Adicionado 'spScore' ao retorno final
+    [_p1, _p2, _p3, _dir, _mode, _p1Bar, _p2Bar, _p3Bar, pbPct, breakout, spScore]
