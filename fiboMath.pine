@@ -50,10 +50,10 @@ export getClusterCount(int[] clusterCounts,float[] clusterPrices, float _price, 
                 result := array.get(clusterCounts, i)
     result
 
-export getLevelStatus(float _w, int _idx, float _lvlFrac, float minSignificance, int topN, int[] topIndices, float biasVal) =>
+export getLevelStatus(float _w, int _idx, float _lvlFrac, float minSignificance, int topN, int[] topIndices, float biasVal, int _activeDir) =>
     if _w < minSignificance
         "IGNORE"
-    else if (biasVal == 1 and _lvlFrac <= 1 and _lvlFrac != 1) or (biasVal == -1 and _lvlFrac >= 1 and _lvlFrac != 1)
+    else if _activeDir != 0 and biasVal != 0 and _activeDir != biasVal
         "CONTRA_VIES"
     else if topN > 0 and array.includes(topIndices, _idx)
         "TOP_N"

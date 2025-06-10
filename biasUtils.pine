@@ -1,11 +1,24 @@
 //@version=6
 library('BiasUtils', overlay=false)
 
-export biasFilter(float dClose, int shortLen, int longLen) =>
+export biasFilter(float dClose, int shortLen, int longLen, int confirmBars) =>
+    var int state = 0
+    var int counter = 0
     float ema10 = ta.ema(dClose, shortLen)
     float ema50 = ta.ema(dClose, longLen)
+    int newStateRaw = 0
     if na(ema10) or na(ema50)
-        0
+        newStateRaw := 0
     else
         float diffPct = math.abs(ema10 - ema50) / dClose
-        diffPct < 0.005 ? 0 : ema10 > ema50 ? 1 : ema10 < ema50 ? -1 : 0
+        newStateRaw := diffPct < 0.005 ? 0 : ema10 > ema50 ? 1 : ema10 < ema50 ? -1 : 0
+
+    if newStateRaw != state
+        counter += 1
+    else
+        counter := 0
+    if counter >= confirmBars
+        state := newStateRaw
+        counter := 0
+    state
+
