@@ -10,8 +10,7 @@ export calcZscore(float _price, float mean, float stdev) =>
     stdev > 0 ? (_price - mean) / stdev : 0.0
 
 // FUNÇÃO calcWeight ATUALIZADA
-export calcWeight(float _price, int _count, float mean, float stdev, float minZScoreAdj, float swingScore) =>
-    // 1. Cálculo do peso base (lógica antiga)
+export calcWeight(float _price, int _count, float mean, float stdev, float minZScoreAdj, float swingScore, float scoreIntensity) =>    // 1. Cálculo do peso base (lógica antiga)
     float z = calcZscore(_price, mean, stdev)
     float zAdj = math.max(math.abs(z), minZScoreAdj)
     float baseWeight = (_count + 1) * math.log(zAdj + 1)
@@ -21,7 +20,7 @@ export calcWeight(float _price, int _count, float mean, float stdev, float minZS
     // O fator de divisão (ex: 10.0) controla a intensidade da amplificação.
     float swingScoreFactor = 1.0
     if swingScore > 0
-        swingScoreFactor := 1 + (math.log10(swingScore) / 10.0) // Ex: log10(1,000,000) = 6. Fator = 1 + 6/10 = 1.6
+        swingScoreFactor := 1 + (math.log10(swingScore) / scoreIntensity)
 
     // 3. Cálculo do peso final
     float finalWeight = baseWeight * swingScoreFactor
