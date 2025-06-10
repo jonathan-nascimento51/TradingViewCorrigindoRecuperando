@@ -88,3 +88,47 @@ export hideFibElements(float bottomVal, float topVal, float rangeVal, line[] fib
 export hideZones(linefill[] zoneFills, line[] zoneLinesLow, line[] zoneLinesHigh) =>
     for i = 0 to array.size(zoneFills) - 1
         updateFibZone(zoneFills, zoneLinesLow, zoneLinesHigh, i, false, 0, 0, color.blue, color.new(color.blue, 98))
+
+// ==================================================================
+// Função auxiliar para limpar todos os objetos de desenho
+// Pode ser utilizado para evitar "zonas fantasmas" quando um novo
+// swing é calculado. Se _clearHistory for false, a função não faz nada,
+// preservando objetos que possam estar sendo usados para depuração.
+// ==================================================================
+export hideAllDrawingObjects(
+     line[] fibLines,
+     label[] fibLabels,
+     label[] circleLabels,
+     linefill[] zoneFills,
+     line[] zoneLinesLow,
+     line[] zoneLinesHigh,
+     label[] fibPivotLabels,
+     bool _clearHistory) =>
+    if _clearHistory
+        for i = 0 to array.size(fibLines) - 1
+            line ln = array.get(fibLines, i)
+            line.set_extend(ln, extend.none)
+            line.set_color(ln, na)
+        for i = 0 to array.size(fibLabels) - 1
+            label lb = array.get(fibLabels, i)
+            label.set_text(lb, "")
+            label.set_color(lb, na)
+        for i = 0 to array.size(circleLabels) - 1
+            label cl = array.get(circleLabels, i)
+            label.set_text(cl, "")
+            label.set_color(cl, na)
+        for i = 0 to array.size(zoneFills) - 1
+            linefill lf = array.get(zoneFills, i)
+            linefill.set_color(lf, na)
+        for i = 0 to array.size(zoneLinesLow) - 1
+            line zl = array.get(zoneLinesLow, i)
+            line.set_extend(zl, extend.none)
+            line.set_color(zl, na)
+        for i = 0 to array.size(zoneLinesHigh) - 1
+            line zh = array.get(zoneLinesHigh, i)
+            line.set_extend(zh, extend.none)
+            line.set_color(zh, na)
+        for i = 0 to array.size(fibPivotLabels) - 1
+            label pl = array.get(fibPivotLabels, i)
+            label.set_text(pl, "")
+            label.set_color(pl, na)
