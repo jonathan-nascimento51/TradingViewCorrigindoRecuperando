@@ -1,9 +1,9 @@
 //@version=6
-indicator("confluenciaFiboFractal_v10", shorttitle="main_v10", overlay=true, max_lines_count=200, max_labels_count=200)
+indicator("confluenciaFiboFractal_v10.1", shorttitle="main_v10.1", overlay=true, max_lines_count=200, max_labels_count=200)
 
 import jonathanmoletta17/FractalUtils/1 as fractals
-import jonathanmoletta17/FiboMath/1 as fibomath
-import jonathanmoletta17/SwingDetection_lib/1 as swing
+import jonathanmoletta17/FiboMath/2 as fibomath
+import jonathanmoletta17/SwingDetection/2 as swing
 import jonathanmoletta17/DrawingHelpers/1 as draw
 import jonathanmoletta17/BiasUtils/1 as bias
 
@@ -45,6 +45,16 @@ replayCount        = input.int(1,       "Quantos Swings Exibir no Replay",     m
 minZScoreAdj     = input.float(0.05,  "Z-score mínimo p/ peso",       step=0.01, minval=0.0)
 minSwingPct        = input.float(1.0,   "Range mínimo P1-P2 (%)",      step=0.1, minval=0.0)
 minSwingBars       = input.int(3,       "Barras mínimas entre P1-P3",  minval=1)
+
+// ----- Parâmetros para lógica de inércia e sistema de score -----
+scoreThresholdPct   = input.float(25.0, "Melhora Mínima do Score para Troca (%)")
+invalidateOnP2Break = input.bool(true,  "Invalidar Swing Ativo no Rompimento de P2?")
+
+pbQualityIdeal      = input.float(1.0,  "Pontuação Pullback Ideal", step=0.1)
+pbQualityGood       = input.float(0.5,  "Pontuação Pullback Boa",  step=0.1)
+durationOptimalMin  = input.float(1.0,  "Duração Ótima Mín (x ATRLen)", step=0.1)
+durationOptimalMax  = input.float(3.0,  "Duração Ótima Máx (x ATRLen)", step=0.1)
+swingScoreIntensity = input.float(10.0, "Intensidade do Score no Peso", step=0.1, minval=1.0)
 
 // Constants for weight classification
 HIGH_WEIGHT_FRAC   = 0.75
@@ -114,7 +124,7 @@ var string activeMode = "Retracement"
 var int activeP1Bar = na, var int activeP2Bar = na, var int activeP3Bar = na
 var float activePbPct = na
 var bool  activeBreakout = false
-var float activeScore = 0.0
+var float activeScore = na
 
 // Variável global para armazenar, a cada swing, o maxWeight calculado
 var float lastMaxWeight = 0.0
@@ -277,8 +287,7 @@ float threshold = minSignificance
 int[] topIndices = array.new_int()
 
 // PASSO 1: Obter TODOS os dados do swing da biblioteca, incluindo o 'fibScore'.
-[fibP1, fibP2, fibP3, fibDir, fibModeActive, fibP1Bar, fibP2Bar, fibP3Bar, fibPbPct, fibBreakout, fibScore] = swing.determineFib(pivotPrices, pivotTypes, pivotBars, biasVal, fibModeInput, atrLength, fractalPrices, atrValue)
-
+[fibP1, fibP2, fibP3, fibDir, fibModeActive, fibP1Bar, fibP2Bar, fibP3Bar, fibPbPct, fibBreakout, fibScore] = swing.determineFib(pivotPrices, pivotTypes, pivotBars, biasVal, fibModeInput, atrLength, fractalPrices, atrValue, pbQualityIdeal, pbQualityGood, durationOptimalMin, durationOptimalMax)
 // PASSO 2: Atribuir o score retornado à nossa variável global 'lastSwingScore'.
 // Este é o único lugar onde lastSwingScore é atualizado.
 lastSwingScore := fibScore
@@ -300,37 +309,78 @@ else
         label.delete(diagLabel)
         diagLabel := na
 
-// PASSO 4: VERIFICAR SE O SWING É VÁLIDO.
+// PASSO 4: Atualiza swing ativo aplicando lógica de inércia
+// ---------------------------------------------------------
+// 1) Verifica se o swing ativo deve ser invalidado
+if not na(activeP1)
+    bool breakP1 = activeDir == 1 ? close < activeP1 : close > activeP1
+    bool breakP2 = false
+    if invalidateOnP2Break and activeMode == "Retracement"
+        breakP2 := swing.hasImpulseBreakout(activeDir, activeP2, atrValue)
+    if breakP1 or breakP2
+        activeP1 := na
+        activeP2 := na
+        activeP3 := na
+        activeDir := 0
+        activeMode := "Retracement"
+        activeP1Bar := na
+        activeP2Bar := na
+        activeP3Bar := na
+        activePbPct := na
+        activeBreakout := false
+        activeScore := na
+
+// 2) Caso não exista swing ativo ou o novo seja significativamente melhor, substitui
+bool replaceActive = false
+
 if not na(fibP1) and not na(fibP2)
-    // A partir daqui, estamos seguros de que temos um swing para trabalhar.
-    float baseRange = math.abs(fibP2 - fibP1)
-    if fibDir == 1
-        if fibModeActive == "Retracement"
-            bottomVal := fibP1, topVal := fibP2
-        else if fibModeActive == "Extension"
-            bottomVal := fibP2, topVal := fibP2 + baseRange
-        else // Projection
-            bottomVal := fibP3, topVal := fibP3 + baseRange
+    if na(activeP1)
+        replaceActive := true
+    else if na(activeScore) or fibScore >= activeScore * (1 + scoreThresholdPct / 100)
+        replaceActive := true
+    if replaceActive
+        activeP1 := fibP1
+        activeP2 := fibP2
+        activeP3 := fibP3
+        activeDir := fibDir
+        activeMode := fibModeActive
+        activeP1Bar := fibP1Bar
+        activeP2Bar := fibP2Bar
+        activeP3Bar := fibP3Bar
+        activePbPct := fibPbPct
+        activeBreakout := fibBreakout
+        activeScore := fibScore
+
+// A partir daqui usamos as variáveis 'active*' para desenhar
+if not na(activeP1) and not na(activeP2)
+    float baseRange = math.abs(activeP2 - activeP1)
+    if activeDir == 1
+        if activeMode == "Retracement"
+            bottomVal := activeP1, topVal := activeP2
+        else if activeMode == "Extension"
+            bottomVal := activeP2, topVal := activeP2 + baseRange
+        else
+            bottomVal := activeP3, topVal := activeP3 + baseRange
     else
-        if fibModeActive == "Retracement"
-            topVal := fibP1, bottomVal := fibP2
-        else if fibModeActive == "Extension"
-            topVal := fibP2, bottomVal := fibP2 - baseRange
-        else // Projection
-            topVal := fibP3, bottomVal := fibP3 - baseRange
+        if activeMode == "Retracement"
+            topVal := activeP1, bottomVal := activeP2
+        else if activeMode == "Extension"
+            topVal := activeP2, bottomVal := activeP2 - baseRange
+        else
+            topVal := activeP3, bottomVal := activeP3 - baseRange
     rangeVal := math.abs(topVal - bottomVal)
 
     for i = 0 to levelsCount - 1
         float lvlFrac  = array.get(fibLevels, i)
         float lvlPrice = na
-        if fibModeActive == "Retracement"
-            lvlPrice := fibDir == 1 ? fibP2 - baseRange * lvlFrac : fibP2 + baseRange * lvlFrac
-        else if fibModeActive == "Extension"
-            lvlPrice := fibDir == 1 ? fibP2 + baseRange * lvlFrac : fibP2 - baseRange * lvlFrac
-        else // Projection
-            lvlPrice := fibDir == 1 ? fibP3 + baseRange * lvlFrac : fibP3 - baseRange * lvlFrac
+        if activeMode == "Retracement"
+            lvlPrice := activeDir == 1 ? activeP2 - baseRange * lvlFrac : activeP2 + baseRange * lvlFrac
+        else if activeMode == "Extension"
+            lvlPrice := activeDir == 1 ? activeP2 + baseRange * lvlFrac : activeP2 - baseRange * lvlFrac
+        else
+            lvlPrice := activeDir == 1 ? activeP3 + baseRange * lvlFrac : activeP3 - baseRange * lvlFrac
         array.set(fibPrices, i, lvlPrice)
-    int trendDir = fibDir
+    int trendDir = activeDir
 
     // ==================================================================
     // 12.A) CÁLCULO DE “weight” E maxWeight
@@ -347,8 +397,8 @@ if not na(fibP1) and not na(fibP2)
             if math.abs(fractalPrice - priceF) <= distPctCalc
                 contagem += 1
 
-        // A CHAMADA CORRETA: Passando 'lastSwingScore' para a função de cálculo de peso
-        float weight = fibomath.calcWeight(priceF, contagem, h1Mean, h1Stdev, minZScoreAdj, lastSwingScore)
+        // Peso levando em conta o score do swing ativo
+        float weight = fibomath.calcWeight(priceF, contagem, h1Mean, h1Stdev, minZScoreAdj, activeScore, swingScoreIntensity)
         array.set(fibWeights, i, weight)
 
         if weight > maxWeight
@@ -421,25 +471,24 @@ if not na(fibP1) and not na(fibP2)
     if showFibPivots
         float offset = syminfo.mintick * 5
         label lp1 = array.get(fibPivotLabels, 0), label lp2 = array.get(fibPivotLabels, 1), label lp3 = array.get(fibPivotLabels, 2)
-        label.set_xy(lp1, fibP1Bar, fibP1 + (fibDir == 1 ? -offset : offset)), label.set_text(lp1, "P1"), label.set_style(lp1, fibDir == 1 ? label.style_label_up : label.style_label_down)
-        label.set_xy(lp2, fibP2Bar, fibP2 + (fibDir == 1 ? offset : -offset)), label.set_text(lp2, "P2"), label.set_style(lp2, fibDir == 1 ? label.style_label_down : label.style_label_up)
-        if not na(fibP3Bar)
-            label.set_xy(lp3, fibP3Bar, fibP3 + (fibDir == 1 ? -offset : offset)), label.set_text(lp3, "P3"), label.set_style(lp3, fibDir == 1 ? label.style_label_up : label.style_label_down)
+        label.set_xy(lp1, activeP1Bar, activeP1 + (activeDir == 1 ? -offset : offset)), label.set_text(lp1, "P1"), label.set_style(lp1, activeDir == 1 ? label.style_label_up : label.style_label_down)
+        label.set_xy(lp2, activeP2Bar, activeP2 + (activeDir == 1 ? offset : -offset)), label.set_text(lp2, "P2"), label.set_style(lp2, activeDir == 1 ? label.style_label_down : label.style_label_up)
+        if not na(activeP3Bar)
+            label.set_xy(lp3, activeP3Bar, activeP3 + (activeDir == 1 ? -offset : offset)), label.set_text(lp3, "P3"), label.set_style(lp3, activeDir == 1 ? label.style_label_up : label.style_label_down)
         else
             label.set_text(lp3, "")
 
     // Lógica para registrar cluster
-    if fibBreakout and not na(fibP3Bar)
-        if na(lastAddedSwingBar) or fibP3Bar != lastAddedSwingBar
+    if activeBreakout and not na(activeP3Bar)
+        if na(lastAddedSwingBar) or activeP3Bar != lastAddedSwingBar
             for i = 0 to levelsCount - 1
                 fibomath.recordClusterLevel(clusterCounts, clusterPrices, array.get(fibPrices, i), atrValue, volPct, atrMultiplier, syminfo.mintick)
-            lastAddedSwingBar := fibP3Bar
+            lastAddedSwingBar := activeP3Bar
 
 else
-    for i = 0 to levelsCount - 1
-        // Se nenhum swing válido for encontrado, esconde todos os elementos
-        draw.hideFibElements(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, fibPivotLabels, array.get(fibPrices, i))
-        draw.hideZones(zoneFills, zoneLinesLow, zoneLinesHigh)
+    // Se nenhum swing válido for encontrado, esconde todos os elementos
+    draw.hideFibElements(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, fibPivotLabels, 0)
+    draw.hideZones(zoneFills, zoneLinesLow, zoneLinesHigh)
 
 // ==================================================================
 // 13. TABELA DE STATUS (PARÂMETROS)
