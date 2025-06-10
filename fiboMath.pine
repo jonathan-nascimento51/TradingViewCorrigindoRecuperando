@@ -2,7 +2,7 @@
 // Substituir na biblioteca 'FiboMath'
 
 library('FiboMath', overlay=false)
-import joostraders/FractalUtils/1 as fractals
+import jonathanmoletta17/FractalUtils/1 as fractals
 
 // ... (as outras funções como calcZscore, recordClusterLevel, etc. permanecem as mesmas)
 
