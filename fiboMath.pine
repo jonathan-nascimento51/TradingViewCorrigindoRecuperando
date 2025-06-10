@@ -26,7 +26,7 @@ export calcWeight(float _price, int _count, float mean, float stdev, float minZS
     float finalWeight = baseWeight * swingScoreFactor
     finalWeight
 
-// ... (o resto da biblioteca, como isDisplayAllowed, continua igual)
+// ... (o resto da biblioteca, como getLevelStatus, continua igual)
 export recordClusterLevel(int[] clusterCounts,float[] clusterPrices, float _price, float atrValue, float volPct, float atrMultiplier, float mintick) =>
     float dist = fractals.calcDist(_price, atrValue, volPct, atrMultiplier, mintick)
     int cSize = array.size(clusterPrices)
@@ -50,21 +50,12 @@ export getClusterCount(int[] clusterCounts,float[] clusterPrices, float _price, 
                 result := array.get(clusterCounts, i)
     result
 
-export isDisplayAllowed(float _w, float _pctW, int _idx, float _lvlFrac,bool replayMode, int[] swingBars, int replayStartIdx, int barIndex,bool doAutoHide, float weightMinPct, string topNMode, int topN,int[] topIndices, float threshold, float biasVal) =>
-    bool ok = true
-    if replayMode and array.size(swingBars) > 0
-        int swingBarIdx = array.get(swingBars, replayStartIdx)
-        if barIndex < swingBarIdx
-            ok := false
-    if ok and doAutoHide and _pctW < weightMinPct
-        ok := false
-    if ok and topNMode == 'Strict' and topN > 0 and not array.includes(topIndices, _idx)
-        ok := false
-    if ok and topNMode != 'Strict' and _w < threshold
-        ok := false
-    if ok
-        if biasVal == 1 and _lvlFrac <= 1 and _lvlFrac != 1
-            ok := false
-        if biasVal == -1 and _lvlFrac >= 1 and _lvlFrac != 1
-            ok := false
-    ok
+export getLevelStatus(float _w, int _idx, float _lvlFrac, float minSignificance, int topN, int[] topIndices, float biasVal) =>
+    if _w < minSignificance
+        "IGNORE"
+    else if (biasVal == 1 and _lvlFrac <= 1 and _lvlFrac != 1) or (biasVal == -1 and _lvlFrac >= 1 and _lvlFrac != 1)
+        "CONTRA_VIES"
+    else if topN > 0 and array.includes(topIndices, _idx)
+        "TOP_N"
+    else
+        "NORMAL"
