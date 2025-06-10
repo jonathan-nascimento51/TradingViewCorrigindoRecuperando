@@ -55,6 +55,8 @@ pbQualityGood       = input.float(0.5,  "Pontuação Pullback Boa",  step=0.1)
 durationOptimalMin  = input.float(1.0,  "Duração Ótima Mín (x ATRLen)", step=0.1)
 durationOptimalMax  = input.float(3.0,  "Duração Ótima Máx (x ATRLen)", step=0.1)
 swingScoreIntensity = input.float(10.0, "Intensidade do Score no Peso", step=0.1, minval=1.0)
+alphaAgePenalty   = input.float(1.0,  "Penalidade Idade (α)", title="Expoente Penalidade por Idade", tooltip="Aumenta a penalidade em swings antigos. 1.0=linear, >1.0=exponencial.")
+confirmBars       = input.int(3, "Confirmação Viés (barras)")
 
 // Constants for weight classification
 HIGH_WEIGHT_FRAC   = 0.75
@@ -144,7 +146,7 @@ var label debugLbl = na
 // ==================================================================
 //     Agora retorna o valor com sinal para uso em cálculos de peso
 // ==================================================================
-float biasVal   = bias.biasFilter(request.security(syminfo.tickerid, "D", close), biasShortLen, biasLongLen)
+float biasVal   = bias.biasFilter(request.security(syminfo.tickerid, "D", close), biasShortLen, biasLongLen, confirmBars)
 string biasTxt  = biasVal == 1 ? "Alta" : biasVal == -1 ? "Baixa" : "Neutro"
 
 float ema10Daily = request.security(
@@ -292,7 +294,7 @@ int[] topIndices = array.new_int()
 draw.hideAllDrawingObjects(fibLines,fibLabels,circleLabels,zoneFills,zoneLinesLow,zoneLinesHigh,fibPivotLabels,not showDiagnostics)
 
 // PASSO 1: Obter TODOS os dados do swing da biblioteca, incluindo o 'fibScore'.
-[fibP1, fibP2, fibP3, fibDir, fibModeActive, fibP1Bar, fibP2Bar, fibP3Bar, fibPbPct, fibBreakout, fibScore] = swing.determineFib(pivotPrices, pivotTypes, pivotBars, biasVal, fibModeInput, atrLength, fractalPrices, atrValue, pbQualityIdeal, pbQualityGood, durationOptimalMin, durationOptimalMax)
+[fibP1, fibP2, fibP3, fibDir, fibModeActive, fibP1Bar, fibP2Bar, fibP3Bar, fibPbPct, fibBreakout, fibScore] = swing.determineFib(pivotPrices, pivotTypes, pivotBars, biasVal, fibModeInput, atrLength, fractalPrices, atrValue, pbQualityIdeal, pbQualityGood, durationOptimalMin, durationOptimalMax, alphaAgePenalty)
 // PASSO 2: Atribuir o score retornado à nossa variável global 'lastSwingScore'.
 // Este é o único lugar onde lastSwingScore é atualizado.
 lastSwingScore := fibScore
@@ -439,13 +441,13 @@ if not na(activeP1) and not na(activeP2)
             float priceF  = array.get(fibPrices, i)
             float weight  = array.get(fibWeights, i)
             float lvlFrac = array.get(fibLevels, i)
-            string status = fibomath.getLevelStatus(weight, i, lvlFrac, minSignificance, topN, topIndices, biasVal)
+            string status = fibomath.getLevelStatus(weight, i, lvlFrac, minSignificance, topN, topIndices, biasVal, activeDir)
 
             // --- Lógica de Desenho Unificada ---
             if status == "IGNORE"
                 // Esconde os elementos deste nível se o status for IGNORE
                 if showFibLines
-                    draw.updateFibLineAndLabel(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, i, false, priceF, weight, lastMaxWeight, color.gray, 1, line.style_dotted, trendDir)
+                    draw.updateFibLineAndLabel(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, i, false, priceF, weight, lastMaxWeight, activeScore, color.gray, 1, line.style_dotted, trendDir)
                 if showZones
                     draw.updateFibZone(zoneFills, zoneLinesLow, zoneLinesHigh, i, false, na, na, na, na)
             else 
@@ -456,7 +458,7 @@ if not na(activeP1) and not na(activeP2)
 
                 // Desenha a linha e o label
                 if showFibLines
-                    draw.updateFibLineAndLabel(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, i, true, priceF, weight, lastMaxWeight, baseColor, lw, styleLine, trendDir)
+                    draw.updateFibLineAndLabel(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, i, true, priceF, weight, lastMaxWeight, activeScore, baseColor, lw, styleLine, trendDir)
                     // Adiciona o texto extra para CONTRA_VIES
                     if status == "CONTRA_VIES"
                         label lblTmp = array.get(fibLabels, i)
@@ -568,7 +570,7 @@ if lastMaxWeight > 0
 
         float zVal = fibomath.calcZscore(priceF, h1Mean, h1Stdev)
         float wt   = array.get(fibWeights, i)
-        string status = fibomath.getLevelStatus(wt, i, lvlFrac, minSignificance, topN, topIndices, biasVal)
+        string status = fibomath.getLevelStatus(wt, i, lvlFrac, minSignificance, topN, topIndices, biasVal, activeDir)
 
         string nivelTxt = str.tostring(lvlFrac * 100, "#.##") + "%"
         string inclTxt  = status

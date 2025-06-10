@@ -4,7 +4,7 @@ library('DrawingHelpers', overlay=false)
 // Na biblioteca: DrawingHelpers_library.txt
 
 // ASSINATURA ATUALIZADA: Adicionamos 'lastMaxWeight'
-export updateFibLineAndLabel(float bottomVal, float topVal, float rangeVal, line[] fibLines, label[] fibLabels, label[] circleLabels, int _index, bool _isVisible, float _priceF, float _weight, float lastMaxWeight, color _baseColor, int _lineWidth, string _styleLine, int _trendDir) =>
+export updateFibLineAndLabel(float bottomVal, float topVal, float rangeVal, line[] fibLines, label[] fibLabels, label[] circleLabels, int _index, bool _isVisible, float _priceF, float _weight, float lastMaxWeight, float _activeScore, color _baseColor, int _lineWidth, string _styleLine, int _trendDir) =>
     line  fibLine       = array.get(fibLines, _index)
     label fibPriceLabel = array.get(fibLabels, _index)
     label fibCircleLabel = array.get(circleLabels, _index)
@@ -47,10 +47,10 @@ export updateFibLineAndLabel(float bottomVal, float topVal, float rangeVal, line
             label.set_size(fibCircleLabel, sizeStyle)
             label.set_color(fibCircleLabel, color.new(_baseColor, 20))
             label.set_textcolor(fibCircleLabel, color.white)
-            label.set_tooltip(fibCircleLabel, "Peso Relativo: " + str.tostring(weightRatio * 100, "#.##") + "%")
+            label.set_tooltip(fibCircleLabel, "Peso Abs: " + str.tostring(_weight, "#.##") + " / Rel: " + str.tostring(weightRatio * 100, "#.##") + "% / Score: " + str.tostring(_activeScore, "#.##"))
         else
             label.set_text(fibCircleLabel, "") // Esconde se não for visível
-            label.set_color(fibCircleLabel, color.new(color.gray, 100))
+            label.set_color(fibCircleLabel, na)
             
     else
         // Esconde tudo se o nível não for visível
@@ -58,7 +58,7 @@ export updateFibLineAndLabel(float bottomVal, float topVal, float rangeVal, line
         label.set_text(fibPriceLabel, "")
         label.set_color(fibPriceLabel, color.new(color.gray, 100))
         label.set_text(fibCircleLabel, "")
-        label.set_color(fibCircleLabel, color.new(color.gray, 100))
+        label.set_color(fibCircleLabel, na)
 
 export updateFibZone(linefill[] zoneFills, line[] zoneLinesLow, line[] zoneLinesHigh, int _index, bool _isVisible, float _lowZone, float _highZone, color _borderColor, color _fillColor) =>
     linefill zoneFill = array.get(zoneFills, _index)
@@ -81,7 +81,7 @@ export updateFibZone(linefill[] zoneFills, line[] zoneLinesLow, line[] zoneLines
 
 export hideFibElements(float bottomVal, float topVal, float rangeVal, line[] fibLines, label[] fibLabels, label[] circleLabels, label[] fibPivotLabels,float _priceF) =>
     for i = 0 to array.size(fibLines) - 1
-        updateFibLineAndLabel(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, i, false, 0, 0, _priceF, color.gray, 1, line.style_dotted, 0)
+        updateFibLineAndLabel(bottomVal, topVal, rangeVal, fibLines, fibLabels, circleLabels, i, false, 0, 0, 0, _priceF, color.gray, 1, line.style_dotted, 0)
     for idx = 0 to array.size(fibPivotLabels) - 1
         label.set_text(array.get(fibPivotLabels, idx), "")
 
