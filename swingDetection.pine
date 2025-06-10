@@ -10,14 +10,14 @@ export hasImpulseBreakout(int _dir, float _p2, float atrValue) =>
     priceBreakout and impulse
 
 // FUNÇÃO PRINCIPAL DE SCORE
-export getStrongestPivots(float[] _pivots, string[] _types, int[] _bars, float biasVal, float atrLength, float[] _fractalPrices) =>
+export getStrongestPivots(float[] _pivots, string[] _types, int[] _bars, float biasVal, float atrLength,float[] _fractalPrices, float pbQualIdeal, float pbQualGood,float durOptMinMult, float durOptMaxMult) =>
     int cnt = array.size(_pivots)
     float bestScore = -1.0
     float _p1 = na, float _p2 = na, float _p3 = na
     int _p1Bar = na, int _p2Bar = na, int _p3Bar = na
     int _dir = 0
-    float optimalDurationMin = atrLength * 1.0
-    float optimalDurationMax = atrLength * 3.0
+    float optimalDurationMin = atrLength * durOptMinMult
+    float optimalDurationMax = atrLength * durOptMaxMult
     if cnt >= 3 and array.size(_types) >= 3 and array.size(_bars) >= 3
         for i = 0 to cnt - 3
             string t1 = array.get(_types, i), string t2 = array.get(_types, i + 1), string t3 = array.get(_types, i + 2)
@@ -29,7 +29,7 @@ export getStrongestPivots(float[] _pivots, string[] _types, int[] _bars, float b
             if dir != 0
                 float rangeP1P2 = math.abs(p2 - p1)
                 float pbRatio = rangeP1P2 > 0 ? math.abs(p2 - p3) / rangeP1P2 : 0.0
-                float pbQualityScore = pbRatio >= 0.382 and pbRatio <= 0.618 ? 1.0 : pbRatio > 0.618 and pbRatio <= 0.786 ? 0.5 : 0.2
+                float pbQualityScore = pbRatio >= 0.382 and pbRatio <= 0.618 ? pbQualIdeal : pbRatio > 0.618 and pbRatio <= 0.786 ? pbQualGood : 0.2
                 int confluenceCount = 0
                 if array.size(_fractalPrices) > 0
                     float topOfRange = math.max(p1, p2), float bottomOfRange = math.min(p1, p2)
@@ -51,7 +51,7 @@ export getStrongestPivots(float[] _pivots, string[] _types, int[] _bars, float b
 
 
 // FUNÇÃO DE ORQUESTRAÇÃO
-export determineFib(float[] pivotPrices, string[] pivotTypes, int[] pivotBars, float biasVal, string fibModeInput, float atrLength, float[] fractalPrices, float atrValue) =>
+export determineFib(float[] pivotPrices, string[] pivotTypes, int[] pivotBars, float biasVal,string fibModeInput, float atrLength, float[] fractalPrices, float atrValue,float pbQualIdeal, float pbQualGood, float durOptMinMult, float durOptMaxMult) =>
     float _p1 = na, float _p2 = na, float _p3 = na
     int _dir = 0
     string _mode = 'Retracement'
@@ -59,7 +59,7 @@ export determineFib(float[] pivotPrices, string[] pivotTypes, int[] pivotBars, f
     float pbPct = na
 
     // ALTERAÇÃO 2: Captura o 'spScore' retornado por getStrongestPivots
-    [sp1, sp2, sp3, sp1Bar, sp2Bar, sp3Bar, spDir, spScore] = getStrongestPivots(pivotPrices, pivotTypes, pivotBars, biasVal, atrLength, fractalPrices)
+    [sp1, sp2, sp3, sp1Bar, sp2Bar, sp3Bar, spDir, spScore] = getStrongestPivots(pivotPrices, pivotTypes, pivotBars, biasVal, atrLength, fractalPrices, pbQualIdeal, pbQualGood, durOptMinMult, durOptMaxMult)
     
     if not na(sp1)
         _p1 := sp1, _p2 := sp2, _p3 := sp3
